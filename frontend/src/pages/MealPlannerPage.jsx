@@ -1,9 +1,11 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Helmet } from 'react-helmet';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Calendar, Utensils, Download } from 'lucide-react';
 import { motion } from 'framer-motion';
+import axios from 'axios';
+import { auth } from '../firebase';
 
 const MealCard = ({ day, meals, delay }) => (
     <motion.div
@@ -28,12 +30,54 @@ const MealCard = ({ day, meals, delay }) => (
 );
 
 const MealPlannerPage = () => {
-  const weeklyPlan = [
-      { day: 'Monday', meals: [{time: 'Breakfast', dish: 'Oats with berries'}, {time: 'Lunch', dish: 'Quinoa Salad'}, {time: 'Dinner', dish: 'Lentil Soup'}] },
-      { day: 'Tuesday', meals: [{time: 'Breakfast', dish: 'Scrambled Tofu'}, {time: 'Lunch', dish: 'Leftover Lentil Soup'}, {time: 'Dinner', dish: 'Veggie Stir-fry'}] },
-      { day: 'Wednesday', meals: [{time: 'Breakfast', dish: 'Smoothie'}, {time: 'Lunch', dish: 'Chickpea Sandwich'}, {time: 'Dinner', dish: 'Pasta with Veggies'}] },
-  ];
-    
+  const [symptoms, setSymptoms] = useState('');
+  const [weeklyPlan, setWeeklyPlan] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const [plainTextPlan, setPlainTextPlan] = useState('');
+  const [fullJsonPlan, setFullJsonPlan] = useState(null);
+
+  const generateMealPlan = async () => {
+    if (!symptoms.trim()) {
+      setError('Please enter symptoms');
+      return;
+    }
+    const user = auth.currentUser;
+    if (!user) {
+      setError('You must be logged in to generate a meal plan.');
+      return;
+    }
+    setLoading(true);
+    setError(null);
+    try {
+      const response = await axios.post('/api/mealplanner/generate', { symptoms, userId: user.uid });
+      const plan = response.data.mealPlan.weeklyPlan;
+      setWeeklyPlan(plan);
+      setPlainTextPlan(convertPlanToText(symptoms, plan));
+      setFullJsonPlan(response.data.fullMealPlan);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Failed to generate meal plan');
+      setPlainTextPlan('');
+      setFullJsonPlan(null);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Convert structured plan to plain text format
+  const convertPlanToText = (symptoms, plan) => {
+    if (!plan || plan.length === 0) return '';
+    let text = `Symptoms: ${symptoms}\n`;
+    plan.forEach(dayPlan => {
+      text += `${dayPlan.day}:\n`;
+      dayPlan.meals.forEach(meal => {
+        text += `${meal.time}: ${meal.dish}\n`;
+      });
+      text += '\n';
+    });
+    return text.trim();
+  };
+
   return (
     <>
       <Helmet>
@@ -46,24 +90,84 @@ const MealPlannerPage = () => {
             <p className="page-description">Your weekly menu, sorted. Our AI creates balanced and delicious meal plans tailored just for you. More features are coming soon!</p>
         </div>
 
-        <motion.div 
+        <div className="mb-4">
+          <input
+            type="text"
+            placeholder="Enter your symptoms or health conditions"
+            value={symptoms}
+            onChange={(e) => setSymptoms(e.target.value)}
+            className="w-full p-3 rounded-lg border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition duration-200 placeholder-gray-400 text-gray-900 font-semibold"
+            disabled={loading}
+          />
+        </div>
+
+<motion.div 
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.5 }}
             className="flex justify-center gap-4 mb-8"
         >
-            <Button size="lg"><Calendar className="mr-2 h-5 w-5" /> Generate This Week's Plan</Button>
-            <Button size="lg" variant="outline"><Download className="mr-2 h-5 w-5" /> Download Grocery List</Button>
+            <Button size="lg" onClick={generateMealPlan} disabled={loading}>
+              <Calendar className="mr-2 h-5 w-5" /> 
+              {loading ? 'Generating...' : "Generate This Week's Plan"}
+            </Button>
+            <Button size="lg" variant="outline" onClick={downloadGroceryList} disabled={weeklyPlan.length === 0}>
+              <Download className="mr-2 h-5 w-5" /> Download Grocery List
+            </Button>
         </motion.div>
 
+        {error && <p className="text-red-600 mb-4">{error}</p>}
+
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {weeklyPlan.map((dayPlan, index) => (
-                <MealCard key={dayPlan.day} day={dayPlan.day} meals={dayPlan.meals} delay={index * 0.1} />
-            ))}
+          {weeklyPlan.length > 0 ? (
+            weeklyPlan.map((dayPlan, index) => (
+              <MealCard key={dayPlan.day} day={dayPlan.day} meals={dayPlan.meals} delay={index * 0.1} />
+            ))
+          ) : (
+            <p className="text-center text-muted-foreground">No meal plan generated yet.</p>
+          )}
         </div>
+
+        {/* Removed plainTextPlan rendering to avoid duplicate output */}
+        {/*
+        {plainTextPlan && (
+          <div className="mt-6 p-4 bg-white rounded-lg whitespace-pre-wrap font-mono text-sm text-black">
+            {plainTextPlan}
+          </div>
+        )}
+        */}
+
+        {fullJsonPlan && (
+          <div className="mt-6 p-4 bg-gray-50 rounded-lg overflow-auto max-h-96 font-mono text-xs">
+            <pre>{JSON.stringify(fullJsonPlan, null, 2)}</pre>
+          </div>
+        )}
       </div>
     </>
   );
 };
+
+async function downloadGroceryList() {
+  const user = auth.currentUser;
+  if (!user) {
+    alert('You must be logged in to download the grocery list.');
+    return;
+  }
+  try {
+    const response = await axios.get(`/api/mealplanner/grocerylist/${user.uid}`, {
+      responseType: 'blob',
+    });
+    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/plain' }));
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', 'mealplan.txt');
+    document.body.appendChild(link);
+    link.click();
+    link.parentNode.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  } catch (error) {
+    alert('Failed to download grocery list.');
+  }
+}
 
 export default MealPlannerPage;

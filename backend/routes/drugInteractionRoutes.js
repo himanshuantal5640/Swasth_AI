@@ -10,7 +10,7 @@ const safeCombos = [
   ['paracetamol', 'pantoprazole'],
   ['omeprazole', 'ibuprofen'],
   ['loratadine', 'paracetamol'],
-  ['cetirizine', 'ranitidine']
+  ['cetirizine', 'ranitidine'],
 ].map(pair => pair.map(name => name.toLowerCase()).sort().join('+'));
 
 const getRxcui = async (drugName) => {
