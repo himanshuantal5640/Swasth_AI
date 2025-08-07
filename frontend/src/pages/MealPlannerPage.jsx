@@ -128,15 +128,6 @@ const MealPlannerPage = () => {
           )}
         </div>
 
-        {/* Removed plainTextPlan rendering to avoid duplicate output */}
-        {/*
-        {plainTextPlan && (
-          <div className="mt-6 p-4 bg-white rounded-lg whitespace-pre-wrap font-mono text-sm text-black">
-            {plainTextPlan}
-          </div>
-        )}
-        */}
-
         {fullJsonPlan && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg overflow-auto max-h-96 font-mono text-xs">
             <pre>{JSON.stringify(fullJsonPlan, null, 2)}</pre>
