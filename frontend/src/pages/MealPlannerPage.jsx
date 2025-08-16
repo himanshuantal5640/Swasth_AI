@@ -111,9 +111,7 @@ const MealPlannerPage = () => {
               <Calendar className="mr-2 h-5 w-5" /> 
               {loading ? 'Generating...' : "Generate This Week's Plan"}
             </Button>
-            <Button size="lg" variant="outline" onClick={downloadGroceryList} disabled={weeklyPlan.length === 0}>
-              <Download className="mr-2 h-5 w-5" /> Download Grocery List
-            </Button>
+            
         </motion.div>
 
         {error && <p className="text-red-600 mb-4">{error}</p>}
@@ -128,6 +126,15 @@ const MealPlannerPage = () => {
           )}
         </div>
 
+        {/* Removed plainTextPlan rendering to avoid duplicate output */}
+        {/*
+        {plainTextPlan && (
+          <div className="mt-6 p-4 bg-white rounded-lg whitespace-pre-wrap font-mono text-sm text-black">
+            {plainTextPlan}
+          </div>
+        )}
+        */}
+
         {fullJsonPlan && (
           <div className="mt-6 p-4 bg-gray-50 rounded-lg overflow-auto max-h-96 font-mono text-xs">
             <pre>{JSON.stringify(fullJsonPlan, null, 2)}</pre>
@@ -138,27 +145,5 @@ const MealPlannerPage = () => {
   );
 };
 
-async function downloadGroceryList() {
-  const user = auth.currentUser;
-  if (!user) {
-    alert('You must be logged in to download the grocery list.');
-    return;
-  }
-  try {
-    const response = await axios.get(`/api/mealplanner/grocerylist/${user.uid}`, {
-      responseType: 'blob',
-    });
-    const url = window.URL.createObjectURL(new Blob([response.data], { type: 'text/plain' }));
-    const link = document.createElement('a');
-    link.href = url;
-    link.setAttribute('download', 'mealplan.txt');
-    document.body.appendChild(link);
-    link.click();
-    link.parentNode.removeChild(link);
-    window.URL.revokeObjectURL(url);
-  } catch (error) {
-    alert('Failed to download grocery list.');
-  }
-}
 
 export default MealPlannerPage;
